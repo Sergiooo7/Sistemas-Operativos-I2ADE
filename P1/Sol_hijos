@@ -1,0 +1,98 @@
+#include <stdio.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+
+void despierta(){}
+
+int main(int argc, char *argv[]){
+	int i, x, y, shmidx, shmidy;
+	int *vx, *vy; // Punteros a los vectores de memoria compartida para los PIDs
+	pid_t pid, pid_hijos;
+	
+	if(argc != 3){
+		printf("error en argumentos\n");
+	}
+	else{
+		pid_hijos = getpid();
+		x = atoi(argv[1]);
+		y = atoi(argv[2]);
+		
+		// PROCESO CLAVE 1: Creación e integración de memoria compartida
+		shmidx = shmget(IPC_PRIVATE, sizeof(int) * x, IPC_CREAT | 0666);
+		vx = (int *) shmat (shmidx, 0, 0);
+		
+		// Vector que almacena PIDs de los procesos 'y'.
+		shmidy = shmget(IPC_PRIVATE, sizeof(int) * y, IPC_CREAT | 0666);
+		vy = (int *) shmat (shmidy, 0, 0);
+
+		// PROCESO CLAVE 2: Creación de la rama vertical de procesos (X niveles)
+		for(i = 1; i <= x; i++){
+			pid = fork();
+			if(pid != 0){
+				wait(NULL); 
+				break;
+			}
+			else{
+				// El nuevo proceso almacena su PID en el vector compartido
+				vx[i - 1] = getpid();
+				// Muestra por pantalla su PID y los PIDs de sus antecesores
+				printf("Soy el proceso %d. Mis padres son: ", getpid());
+				printf("%d", pid_hijos); 
+				
+				for(int j = 0; j < i - 1; j++){
+					printf(", %d", vx[j]);
+				}
+				printf("\n");	
+			}
+		}
+		if(i == 1){ 
+			// PROCESO CLAVE 4: Impresión del resultado final y liberación de recursos en el Super Padre
+			printf("Soy el super padre %d, mis hijos finales son: ", getpid());
+			for(i = 0; i < y; i++){
+				printf("%d" ,vy[i]);
+				if(i != y - 1){
+					printf(", ");
+				}
+			}
+			printf("\n");
+			// Desvinculación y eliminación de los segmentos IPC de memoria compartida
+			shmdt(vx);
+			shmdt(vy);
+			shmctl(shmidx, IPC_RMID, NULL);
+			shmctl(shmidy, IPC_RMID, NULL);
+		}
+		else{
+			// PROCESO CLAVE 3: El último hijo vertical genera los Y hijos horizontales
+			if(i == x + 1){
+				for(i = 1; i <= y; i++){
+					pid = fork();
+					if(pid == 0){
+						vy[i-1] = getpid();
+						signal(SIGALRM, despierta);
+						alarm(10);
+						pause();
+						// Limpieza de memoria y salida explícita del hijo horizontal
+						shmdt(vx);
+						shmdt(vy);
+						exit(0);
+					}
+				}
+				if(i == y + 1){	// El nodo vertical inferior espera a todos sus hijos
+					for(i = 1; i <= y; i++){
+						wait(NULL);
+					}
+				}
+			}
+			// Desvinculación de la memoria compartida en los procesos intermedios
+			shmdt(vx);
+			shmdt(vy);
+		}
+	}
+	return 0;
+}
+
+
