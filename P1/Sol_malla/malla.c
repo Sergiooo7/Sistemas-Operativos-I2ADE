@@ -4,42 +4,62 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-// Manejador de señal para SIGALRM
-void manejador_alarma(int sig) {}
+/* Variables globales para las dimensiones de la malla */
+int x = 0;
+int y = 0;
 
-// Función que crea la cadena vertical de 'x' niveles
-void cadena_vertical(int x) {
-    // Cadena vertical: el hijo crea los 'x - 1' niveles inferiores
-    for (int j = 1; j < x; j++) {
-        if (fork() != 0) {
-            wait(NULL);
-            exit(0);
-        }
+/* Prototipos de funciones */
+void process_args(int argc, char *argv[]);
+void manejador_alarma(int sig);
+void crear_malla(void);
+void crear_columna(void);
+void ejecutar_hoja(void);
+
+/* Validación y obtención de parámetros */
+void process_args(int argc, char *argv[]) {
+    if (argc < 3) {
+        exit(EXIT_FAILURE);
     }
+    x = atoi(argv[1]);
+    y = atoi(argv[2]);
+}
+
+/* Manejador de señal vacío para SIGALRM */
+void manejador_alarma(int sig) {
+
+}
+
+/* Lógica del proceso hoja (nodo inferior) */
+void ejecutar_hoja(void) {
     signal(SIGALRM, manejador_alarma);
     alarm(10);
     pause();
-    exit(0);
+    exit(EXIT_SUCCESS);
 }
 
-// Función que crea las 'y' columnas horizontales
-void malla_horizontal(int x, int y) {
-    // Bucle principal: crea las 'y' columnas horizontales
+/* Creación de la cadena vertical (niveles X) */
+void crear_columna(void) {
+    for (int j = 1; j < x; j++) {
+        if (fork() != 0) {
+            wait(NULL);
+            exit(EXIT_SUCCESS);
+        }
+    }
+    ejecutar_hoja();
+}
+
+/* Creación de las columnas horizontales (Y) */
+void crear_malla(void) {
     for (int i = 0; i < y; i++) {
         if (fork() == 0) {
-            cadena_vertical(x);
+            crear_columna();
         }
     }
     while (wait(NULL) > 0);
 }
 
 int main(int argc, char *argv[]) {
-    
-    if (argc < 3) return 1;
-    int x = atoi(argv[1]);
-    int y = atoi(argv[2]);
-
-    malla_horizontal(x, y);
-
+    process_args(argc, argv);
+    crear_malla();
     return 0;
 }
