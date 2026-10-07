@@ -48,7 +48,7 @@ void processArgs(int argc, char *argv[]) {
         fprintf(stderr, "Uso: %s <segundos>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
-    secs = atoi(argv[1]); 
+    secs = atoi(argv[1]);
 }
 
 // ==== Proceso super-padre (ejec) ====
@@ -59,10 +59,10 @@ int main(int argc, char *argv[]) {
     printf("Soy el proceso ejec: mi pid es %d\n", pidEjec);
 
     // Registra el manejador para iniciar la secuencia de apagado
-    signal(SIGUSR2, handler_start_destruction); 
+    signal(SIGUSR2, handler_start_destruction);
 
     // Crea la rama de procesos y espera a su finalización
-    make_processA(); 
+    make_processA();
 
     printf("Soy ejec (%d) y muero\n", pidEjec);
     return 0;
@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
 
 void handler_start_destruction(int s) {
     (void)s;
-    kill(pidA, SIGUSR2); 
+    kill(pidA, SIGUSR2);
 }
 
 // ==== Proceso A ====
@@ -80,7 +80,7 @@ void make_processA(void) {
             exec_processA();
             exit(0);
         default:
-            wait(NULL); 
+            wait(NULL);
     }
 }
 
@@ -88,8 +88,8 @@ void exec_processA(void) {
     pidA = getpid();
     printf("Soy el proceso A: mi pid es %d. Mi padre es %d\n", pidA, pidEjec);
 
-    signal(SIGUSR1, handler_A_execTask); 
-    signal(SIGUSR2, handler_A_destroy_propagate); 
+    signal(SIGUSR1, handler_A_execTask);
+    signal(SIGUSR2, handler_A_destroy_propagate);
 
     make_processB();
 }
@@ -99,19 +99,19 @@ void handler_A_execTask(int s) {
     pid_t pid;
     (void)s;
 
-    pid = fork(); 
+    pid = fork();
     if (pid == 0) {
-        execlp("pstree", "pstree", (char *)NULL); 
+        execlp("pstree", "pstree", (char *)NULL);
         exit(EXIT_FAILURE);
     }
-    wait(NULL); 
-    kill(pidEjec, SIGUSR2); 
+    wait(NULL);
+    kill(pidEjec, SIGUSR2);
 }
 
 void handler_A_destroy_propagate(int s) {
     (void)s;
-    kill(pidB, SIGUSR2); 
-    wait(NULL); 
+    kill(pidB, SIGUSR2);
+    wait(NULL);
 
     printf("Soy A (%d) y muero\n", pidA);
     exit(0);
@@ -119,7 +119,7 @@ void handler_A_destroy_propagate(int s) {
 
 // ==== Proceso B ====
 void make_processB(void) {
-    switch (pidB = fork()) { 
+    switch (pidB = fork()) {
         case 0:
             exec_processB();
             exit(0);
@@ -140,7 +140,7 @@ void exec_processB(void) {
     make_processZ();
 
     while (1) {
-        pause(); 
+        pause();
     }
 }
 
@@ -148,13 +148,13 @@ void exec_processB(void) {
 void handler_B_destroy_propagate(int s) {
     (void)s;
 
-    kill(pidZ, SIGUSR2); 
+    kill(pidZ, SIGUSR2);
     wait(NULL);
 
-    kill(pidY, SIGUSR2); 
+    kill(pidY, SIGUSR2);
     wait(NULL);
 
-    kill(pidX, SIGUSR2); 
+    kill(pidX, SIGUSR2);
     wait(NULL);
 
     printf("Soy B (%d) y muero\n", pidB);
@@ -233,7 +233,7 @@ void exec_processZ(void) {
     signal(SIGUSR2, handler_Z_destroyLeaf);
 
     // Programa la alarma para enviar la señal transcurridos los segundos indicados
-    alarm(secs); 
+    alarm(secs);
 
     while (1) {
         pause();
@@ -243,7 +243,7 @@ void exec_processZ(void) {
 // Envía SIGUSR1 directamente al proceso A al expirar el tiempo
 void handler_Z_alarm(int s) {
     (void)s;
-    kill(pidA, SIGUSR1); 
+    kill(pidA, SIGUSR1);
 }
 
 void handler_Z_destroyLeaf(int s) {
