@@ -11,7 +11,7 @@ void controlAlarm(){}
 
 int main(int argc, char *argv[]){
 	int i, x, y, shmidX, shmidY;
-	int *pidX, *pidY; // Punteros a los vectores de memoria compartida para los PIDs
+	int *pidX, *pidY; 
 	pid_t pid, pidHijos;
 	
 	if(argc != 3){
@@ -38,9 +38,7 @@ int main(int argc, char *argv[]){
 				break;
 			}
 			else{
-				// El nuevo proceso almacena su PID en el vector compartido
 				pidX[i - 1] = getpid();
-				// Muestra por pantalla su PID y los PIDs de sus antecesores
 				printf("Soy el proceso %d. Mis padres son: ", getpid());
 				printf("%d", pidHijos); 
 				
@@ -82,7 +80,7 @@ int main(int argc, char *argv[]){
 						exit(0);
 					}
 				}
-				if(i == y + 1){	// El nodo vertical inferior espera a todos sus hijos
+				if(i == y + 1){	
 					for(i = 1; i <= y; i++){
 						wait(NULL);
 					}
