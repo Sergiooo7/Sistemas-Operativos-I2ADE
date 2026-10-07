@@ -48,7 +48,7 @@ void processArgs(int argc, char *argv[]) {
         fprintf(stderr, "Uso: %s <segundos>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
-    secs = atoi(argv[1]); // Conversión de parámetro CLI a entero
+    secs = atoi(argv[1]); 
 }
 
 // ==== Proceso super-padre (ejec) ====
@@ -59,10 +59,10 @@ int main(int argc, char *argv[]) {
     printf("Soy el proceso ejec: mi pid es %d\n", pidEjec);
 
     // Registra el manejador para iniciar la secuencia de apagado
-    signal(SIGUSR2, handler_start_destruction); // Manejador de apagado global
+    signal(SIGUSR2, handler_start_destruction); 
 
     // Crea la rama de procesos y espera a su finalización
-    make_processA(); // Inicio del árbol de procesos
+    make_processA(); 
 
     printf("Soy ejec (%d) y muero\n", pidEjec);
     return 0;
@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
 
 void handler_start_destruction(int s) {
     (void)s;
-    kill(pidA, SIGUSR2); // Notificar orden de destrucción al subárbol A
+    kill(pidA, SIGUSR2); 
 }
 
 // ==== Proceso A ====
@@ -80,8 +80,7 @@ void make_processA(void) {
             exec_processA();
             exit(0);
         default:
-            // El padre espera a que el hijo termine antes de salir
-            wait(NULL); // Espera activa hasta que el proceso A finalice
+            wait(NULL); 
     }
 }
 
@@ -89,8 +88,8 @@ void exec_processA(void) {
     pidA = getpid();
     printf("Soy el proceso A: mi pid es %d. Mi padre es %d\n", pidA, pidEjec);
 
-    signal(SIGUSR1, handler_A_execTask); // Manejador de orden de tarea pstree
-    signal(SIGUSR2, handler_A_destroy_propagate); // Manejador de destrucción
+    signal(SIGUSR1, handler_A_execTask); 
+    signal(SIGUSR2, handler_A_destroy_propagate); 
 
     make_processB();
 }
@@ -100,21 +99,19 @@ void handler_A_execTask(int s) {
     pid_t pid;
     (void)s;
 
-    pid = fork(); // Subproceso auxiliar para el comando externo
+    pid = fork(); 
     if (pid == 0) {
-        execlp("pstree", "pstree", (char *)NULL); // Reemplazar imagen con pstree
+        execlp("pstree", "pstree", (char *)NULL); 
         exit(EXIT_FAILURE);
     }
-   
-    // Espera la ejecución del comando y notifica a ejec para iniciar el apagado
-    wait(NULL); // Bloqueo hasta la finalización de pstree
-    kill(pidEjec, SIGUSR2); // Informar al proceso raíz para iniciar el cierre
+    wait(NULL); 
+    kill(pidEjec, SIGUSR2); 
 }
 
 void handler_A_destroy_propagate(int s) {
     (void)s;
-    kill(pidB, SIGUSR2); // Enviar señal de apagado al subárbol B
-    wait(NULL); // Aguardar la muerte de B
+    kill(pidB, SIGUSR2); 
+    wait(NULL); 
 
     printf("Soy A (%d) y muero\n", pidA);
     exit(0);
@@ -122,7 +119,7 @@ void handler_A_destroy_propagate(int s) {
 
 // ==== Proceso B ====
 void make_processB(void) {
-    switch (pidB = fork()) { // Creación del nodo intermedio B
+    switch (pidB = fork()) { 
         case 0:
             exec_processB();
             exit(0);
@@ -143,7 +140,7 @@ void exec_processB(void) {
     make_processZ();
 
     while (1) {
-        pause(); // Suspensión en bucle a la espera de señales
+        pause(); 
     }
 }
 
@@ -151,13 +148,13 @@ void exec_processB(void) {
 void handler_B_destroy_propagate(int s) {
     (void)s;
 
-    kill(pidZ, SIGUSR2); // Apagado de la hoja Z
+    kill(pidZ, SIGUSR2); 
     wait(NULL);
 
-    kill(pidY, SIGUSR2); // Apagado de la hoja Y
+    kill(pidY, SIGUSR2); 
     wait(NULL);
 
-    kill(pidX, SIGUSR2); // Apagado de la hoja X
+    kill(pidX, SIGUSR2); 
     wait(NULL);
 
     printf("Soy B (%d) y muero\n", pidB);
@@ -236,7 +233,7 @@ void exec_processZ(void) {
     signal(SIGUSR2, handler_Z_destroyLeaf);
 
     // Programa la alarma para enviar la señal transcurridos los segundos indicados
-    alarm(secs); // Temporizador en segundos antes de disparar SIGALRM
+    alarm(secs); 
 
     while (1) {
         pause();
@@ -246,7 +243,7 @@ void exec_processZ(void) {
 // Envía SIGUSR1 directamente al proceso A al expirar el tiempo
 void handler_Z_alarm(int s) {
     (void)s;
-    kill(pidA, SIGUSR1); // Alerta por señal a A tras expiración del temporizador
+    kill(pidA, SIGUSR1); 
 }
 
 void handler_Z_destroyLeaf(int s) {
