@@ -1,98 +1,168 @@
 #include <stdio.h>
-#include <sys/wait.h>
-#include <sys/types.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
-// Manejador de señal vacío utilizado para capturar SIGALRM y desbloquear el pause()
-void controlAlarm(){}
+// Variables globales para almacenar PIDs, IPC y la configuración
+int x, y;
+int idMemoriaX, idMemoriaY;
+int *pidsX, *pidsY;
+pid_t pidSuperPadre;
 
-int main(int argc, char *argv[]){
-	int i, x, y, shmidX, shmidY;
-	int *pidX, *pidY; 
-	pid_t pid, pidHijos;
-	
-	if(argc != 3){
-		printf("error en argumentos\n");
-	}
-	else{
-		pidHijos = getpid();
-		x = atoi(argv[1]);
-		y = atoi(argv[2]);
-		
-		// PROCESO CLAVE 1: Creación e integración de memoria compartida
-		shmidX = shmget(IPC_PRIVATE, sizeof(int) * x, IPC_CREAT | 0666);
-		pidX = (int *) shmat (shmidX, 0, 0);
-		
-		// Vector que almacena PIDs de los procesos 'y'.
-		shmidY = shmget(IPC_PRIVATE, sizeof(int) * y, IPC_CREAT | 0666);
-		pidY = (int *) shmat (shmidY, 0, 0);
+// Prototipos de funciones
+void processArgs(int argc, char *argv[]);
+void confMem(void);
+void cleanMem(void);
+void controlAlarma(int s);
 
-		// PROCESO CLAVE 2: Creación de la rama vertical de procesos (X niveles)
-		for(i = 1; i <= x; i++){
-			pid = fork();
-			if(pid != 0){
-				wait(NULL); 
-				break;
-			}
-			else{
-				pidX[i - 1] = getpid();
-				printf("Soy el proceso %d. Mis padres son: ", getpid());
-				printf("%d", pidHijos); 
-				
-				for(int j = 0; j < i - 1; j++){
-					printf(", %d", pidX[j]);
-				}
-				printf("\n");	
-			}
-		}
-		if(i == 1){ 
-			// PROCESO CLAVE 4: Impresión del resultado final y liberación de recursos en el Super Padre
-			printf("Soy el super padre %d, mis hijos finales son: ", getpid());
-			for(i = 0; i < y; i++){
-				printf("%d" ,pidY[i]);
-				if(i != y - 1){
-					printf(", ");
-				}
-			}
-			printf("\n");
-			// Desvinculación y eliminación de los segmentos IPC de memoria compartida
-			shmdt(pidX);
-			shmdt(pidY);
-			shmctl(shmidX, IPC_RMID, NULL);
-			shmctl(shmidY, IPC_RMID, NULL);
-		}
-		else{
-			// PROCESO CLAVE 3: El último hijo vertical genera los Y hijos horizontales
-			if(i == x + 1){
-				for(i = 1; i <= y; i++){
-					pid = fork();
-					if(pid == 0){
-						pidY[i-1] = getpid();
-						signal(SIGALRM, controlAlarm);
-						alarm(10);
-						pause();
-						// Limpieza de memoria y salida explícita del hijo horizontal
-						shmdt(pidX);
-						shmdt(pidY);
-						exit(0);
-					}
-				}
-				if(i == y + 1){	
-					for(i = 1; i <= y; i++){
-						wait(NULL);
-					}
-				}
-			}
-			// Desvinculación de la memoria compartida en los procesos intermedios
-			shmdt(pidX);
-			shmdt(pidY);
-		}
-	}
-	return 0;
+void cadena_vertical(void);
+void printInfo(int nivel);
+
+void hoja_horizontal(void);
+void ejec_horizontal(int indice);
+
+void printSuperPadre(void);
+
+// Validación y lectura de argumentos (x e y)
+void processArgs(int argc, char *argv[]) {
+    if (argc != 3) {
+        fprintf(stderr, "Uso: %s <x> <y>\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+    x = atoi(argv[1]);
+    y = atoi(argv[2]);
 }
 
+// Inicialización e integración de la memoria compartida IPC
+void confMem(void) {
+    idMemoriaX = shmget(IPC_PRIVATE, sizeof(int) * x, IPC_CREAT | 0666);
+    if (idMemoriaX < 0) {
+        perror("Error en shmget X");
+        exit(EXIT_FAILURE);
+    }
+    pidsX = (int *)shmat(idMemoriaX, 0, 0);
 
+    idMemoriaY = shmget(IPC_PRIVATE, sizeof(int) * y, IPC_CREAT | 0666);
+    if (idMemoriaY < 0) {
+        perror("Error en shmget Y");
+        exit(EXIT_FAILURE);
+    }
+    pidsY = (int *)shmat(idMemoriaY, 0, 0);
+}
 
+// Liberación y eliminación de los segmentos IPC en el Super Padre
+void cleanMem(void) {
+    shmdt(pidsX);
+    shmdt(pidsY);
+    shmctl(idMemoriaX, IPC_RMID, NULL);
+    shmctl(idMemoriaY, IPC_RMID, NULL);
+}
+
+// Manejador de señal vacío para desbloquear el pause() con SIGALRM
+void controlAlarma(int s) {
+    (void)s;
+}
+
+// ==== Proceso Super Padre ====
+int main(int argc, char *argv[]) {
+    processArgs(argc, argv);
+
+    pidSuperPadre = getpid();
+    confMem();
+
+    // Genera la jerarquía vertical de procesos
+    cadena_vertical();
+
+    // El super padre imprime el resultado final tras la finalización de la descendencia
+    printSuperPadre();
+
+    // Liberación completa de recursos IPC
+    cleanMem();
+
+    return 0;
+}
+
+// ==== Cadena Vertical de Procesos (X niveles) ====
+void cadena_vertical(void) {
+    int i;
+    pid_t pid;
+
+    for (i = 1; i <= x; i++) {
+        pid = fork();
+        if (pid != 0) {
+            // El padre de este nivel espera a su hijo directo y sale del bucle
+            wait(NULL);
+            break;
+        } else {
+            // Código ejecutado por el hijo vertical de nivel i
+            pidsX[i - 1] = getpid();
+            printInfo(i);
+        }
+    }
+
+    if (i != 1) {
+        // El último nivel vertical (i == x + 1) crea la rama de procesos Y
+        if (i == x + 1) {
+            hoja_horizontal();
+        }
+        // Desvinculación de la memoria compartida en descendientes intermedios
+        shmdt(pidsX);
+        shmdt(pidsY);
+        exit(0);
+    }
+}
+
+void printInfo(int nivel) {
+    printf("Soy el proceso %d. Mis padres son: %d", getpid(), pidSuperPadre);
+    for (int j = 0; j < nivel - 1; j++) {
+        printf(", %d", pidsX[j]);
+    }
+    printf("\n");
+}
+
+// ==== Procesos Hojas Horizontales (Y procesos) ====
+void hoja_horizontal(void) {
+    int i;
+    pid_t pid;
+
+    for (i = 1; i <= y; i++) {
+        pid = fork();
+        if (pid == 0) {
+            ejec_horizontal(i - 1);
+        }
+    }
+
+    // El proceso de nivel X espera a que terminen sus Y hijos horizontales
+    for (i = 1; i <= y; i++) {
+        wait(NULL);
+    }
+}
+
+void ejec_horizontal(int indice) {
+    pidsY[indice] = getpid();
+
+    signal(SIGALRM, controlAlarma);
+    alarm(10);
+    pause();
+
+    // Desvinculación de memoria compartida al finalizar la hoja
+    shmdt(pidsX);
+    shmdt(pidsY);
+    exit(0);
+}
+
+// Impresión del resumen con los PIDs de los hijos horizontales finales
+void printSuperPadre(void) {
+    printf("Soy el super padre %d, mis hijos finales son: ", pidSuperPadre);
+    for (int i = 0; i < y; i++) {
+        printf("%d", pidsY[i]);
+        if (i != y - 1) {
+            printf(", ");
+        }
+    }
+    printf("\n");
+}
