@@ -5,7 +5,7 @@
 #include <signal.h>
 
 // Manejador de señal para SIGALRM
-void nada(int sig) {}
+void manejador_alarma(int sig) {}
 
 // Función que crea la cadena vertical de 'x' niveles
 void cadena_vertical(int x) {
@@ -16,7 +16,7 @@ void cadena_vertical(int x) {
             exit(0);
         }
     }
-    signal(SIGALRM, nada);
+    signal(SIGALRM, manejador_alarma);
     alarm(10);
     pause();
     exit(0);
