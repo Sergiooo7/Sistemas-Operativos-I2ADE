@@ -13,7 +13,7 @@ int main(int argc, char *argv[]){
 		printf("Error. Uso: %s fichero tam_trozo\n", argv[0]);
 	}
 	else{
-		divFich(argv[1], atoi(argv[2])); // Procesa el nombre del fichero y el tamaño
+		divFich(argv[1], atoi(argv[2])); 
 	}
 	return 0;
 }
@@ -79,7 +79,6 @@ void divFich(char nombre[], int tam){
 		// PROCESO CLAVE 4: Espera y finalización en el proceso padre
 		if(i == numTrozos){
 			free(lectura);
-			// El padre espera a que todos los procesos hijos concluyan su tarea
 			for(int i = 0; i < numTrozos; i++){
 				wait(NULL);
 			}
